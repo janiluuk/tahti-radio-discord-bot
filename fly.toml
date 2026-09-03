@@ -1,11 +1,26 @@
-app = 'tahti-radio'
-primary_region = 'ams'
+# fly.toml app configuration file generated for tahti-radio-discord-bot on 2026-09-03T19:43:47Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'tahti-radio-discord-bot'
+primary_region = 'arn'
 
 [build]
 
 [processes]
-  app = "/usr/local/bin/tahti-radio-discord-bot"
+  app = '/usr/local/bin/tahti-radio-discord-bot'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
 
 [[vm]]
   memory = '256mb'
+  cpu_kind = 'shared'
   cpus = 1
+  memory_mb = 256
