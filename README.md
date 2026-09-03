@@ -52,7 +52,9 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Push to `master` runs tests only. Board admins edit Client ID and token in Tahti Player → Settings → Add-ons → Radio.
+`./scripts/deploy_prod.sh` in the Tahti repo rsyncs this checkout next to `/srv/tahti` and builds the `radio-discord-bot` Compose service with the rest of the stack. `./scripts/stack-up.sh` does the same locally when this repo sits next to `tahti`. Push to `master` runs tests and a Docker image build.
+
+Board admins edit Client ID and token in Tahti Player → Settings → Add-ons → Radio.
 
 ## License
 

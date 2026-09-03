@@ -2,7 +2,7 @@
 
 A Discord bot that runs a 24/7 internet radio station. It joins a voice channel called "Tahti Radio" in every guild it's added to and continuously plays music from a curated playlist of YouTube URLs. Users can queue tracks via the `/play` slash command.
 
-Runs as a single Docker Compose replica next to the Tahti API. CI tests on push to `master`; it does not deploy.
+Runs as the `radio-discord-bot` service in the Tahti stack (`infra/docker-compose.stack.yml`). CI on push to `master` runs tests and builds the Docker image.
 
 Part of the `tahti-org` collection of repositories.
 
@@ -142,4 +142,4 @@ Requires `yt-dlp` and `ffmpeg` on PATH.
 
 ## Deployment
 
-Run one replica with `docker compose up -d --build` on the API host. Prefer `TAHTI_API_BASE` + `INTERNAL_SECRET` so credentials come from `GET /api/v1/internal/discord-bot/credentials`. Do not run more than one instance.
+Prefer the Tahti stack: `./scripts/deploy_prod.sh` (production) or `./scripts/stack-up.sh` (local), with this repo checked out next to `tahti`. One replica only. Prefer `TAHTI_API_BASE` + `INTERNAL_SECRET` so credentials come from `GET /api/v1/internal/discord-bot/credentials`.
