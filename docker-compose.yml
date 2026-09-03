@@ -1,0 +1,24 @@
+# Single replica. A second copy would join Discord twice and play in duplicate.
+#
+# On the Tahti API host (same Docker network as `api`):
+#   TAHTI_API_BASE=http://api:3001 INTERNAL_SECRET=... docker compose up -d --build
+#
+# Against production from any always-on box:
+#   TAHTI_API_BASE=https://api.tahti.live INTERNAL_SECRET=... docker compose up -d --build
+
+name: tahti-radio-discord-bot
+
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    environment:
+      TAHTI_API_BASE: ${TAHTI_API_BASE:-https://api.tahti.live}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_TOKEN: ${DISCORD_TOKEN:-}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

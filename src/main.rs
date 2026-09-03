@@ -34,7 +34,7 @@ async fn main() -> ExitCode {
     load_env();
     init_tracing();
 
-    let config = match config::load() {
+    let config = match config::load().await {
         Ok(config) => config,
         Err(error) => {
             eprintln!("Invalid configuration: {error}");

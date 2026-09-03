@@ -24,26 +24,35 @@ Needs Rust 1.97.1 (see `rust-toolchain.toml`), `ffmpeg`, `yt-dlp`, and (for voic
 
 ```sh
 cp .env.example .env.local
-# set DISCORD_CLIENT_ID and DISCORD_TOKEN
+# set TAHTI_API_BASE + INTERNAL_SECRET, or DISCORD_CLIENT_ID + DISCORD_TOKEN
 cargo run
 ```
 
-| Variable            | Required | Description                                      |
-| ------------------- | -------- | ------------------------------------------------ |
-| `DISCORD_CLIENT_ID` | yes      | Application ID from General Information          |
-| `DISCORD_TOKEN`     | yes      | Bot token from the Bot page                      |
+| Variable            | Required | Description                                                                 |
+| ------------------- | -------- | --------------------------------------------------------------------------- |
+| `TAHTI_API_BASE`    | no       | Tahti API origin. With `INTERNAL_SECRET`, credentials are loaded from the API. |
+| `INTERNAL_SECRET`   | no       | Shared secret for `GET /api/v1/internal/discord-bot/credentials`            |
+| `DISCORD_CLIENT_ID` | yes*     | Application ID from General Information                                     |
+| `DISCORD_TOKEN`     | yes*     | Bot token from the Bot page                                                 |
+
+\*Required unless the bot successfully loads credentials from the Tahti API.
 
 `.env.local` and `.env` are gitignored. The bot loads `.env.local` first, then `.env`.
 
 ## Deploy
 
-The app runs on Fly.io (`tahti-radio`, Amsterdam, single 256MB VM). Push to `master` runs tests, then deploys when the `FLY_API_TOKEN` GitHub Actions secret is set. If that secret is missing, deploy is skipped and CI still passes.
+Fly.io is not used. This is a long-running Discord Gateway process (ffmpeg + yt-dlp), not an HTTP service — do not fold it into the Fastify API. Run **one replica** next to the API (a second copy would play in duplicate).
+
+On the Tahti API host:
 
 ```sh
-gh secret set FLY_API_TOKEN --repo janiluuk/tahti-radio-discord-bot
+cp .env.example .env
+# set INTERNAL_SECRET to the same value the API uses
+# if the bot shares the API compose network: TAHTI_API_BASE=http://api:3001
+docker compose up -d --build
 ```
 
-Create the token with `fly tokens create deploy` while logged into the Fly org that owns `tahti-radio`. Without that secret, Tests still run and Deploy is skipped (CI stays green).
+Push to `master` runs tests only. Board admins edit Client ID and token in Tahti Player → Settings → Add-ons → Radio.
 
 ## License
 

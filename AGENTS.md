@@ -2,7 +2,7 @@
 
 A Discord bot that runs a 24/7 internet radio station. It joins a voice channel called "Tahti Radio" in every guild it's added to and continuously plays music from a curated playlist of YouTube URLs. Users can queue tracks via the `/play` slash command.
 
-Deployed on Fly.io (Amsterdam region). CI deploys on push to `master`.
+Runs as a single Docker Compose replica next to the Tahti API. CI tests on push to `master`; it does not deploy.
 
 Part of the `tahti-org` collection of repositories.
 
@@ -87,18 +87,24 @@ src/
         guild_create.rs  Finds/creates voice channel, joins, starts playback.
         interaction.rs   Routes slash commands to handlers by name match.
 tracks.txt          Playlist of YouTube URLs, one per line.
-fly.toml            Fly.io deployment config.
-Dockerfile          Multi-stage build: cargo-chef for caching, bookworm-slim runtime with ffmpeg + yt-dlp.
+docker-compose.yml  Single-replica process next to the Tahti API.
+Dockerfile          Multi-stage build: cargo-chef 0.1.78 on Rust 1.97.1 bookworm, debian bookworm-slim runtime with ffmpeg + yt-dlp.
 ```
 
 ## Environment variables
 
-| Variable            | Required | Description              |
-| ------------------- | -------- | ------------------------ |
-| `DISCORD_TOKEN`     | yes      | Bot token                |
-| `DISCORD_CLIENT_ID` | yes      | Application/client ID    |
+| Variable            | Required | Description                                                                 |
+| ------------------- | -------- | --------------------------------------------------------------------------- |
+| `DISCORD_CLIENT_ID` | yes*     | Discord application / client ID                                             |
+| `DISCORD_TOKEN`     | yes*     | Discord bot token                                                           |
+| `TAHTI_API_BASE`    | no       | Tahti API origin (e.g. `https://api.tahti.live`). When set with `INTERNAL_SECRET`, credentials are loaded from the API. |
+| `INTERNAL_SECRET`   | no       | Shared secret for `GET /api/v1/internal/discord-bot/credentials`            |
 
-Loaded from `.env.local` first, then `.env`, then the actual environment. Both `.env` files are gitignored.
+\*Required unless the bot successfully loads credentials from the Tahti API.
+
+Loaded from `.env.local` first, then `.env`, then the actual environment. Both `.env` files are gitignored. Copy `.env.example` to `.env.local`.
+
+Board admins edit the same Client ID and token in Tahti Player → Settings → Add-ons → Radio (Tahti Radio Discord bot). That write goes to `PUT /api/admin/discord-bot` and never returns the raw token afterward.
 
 ## Key patterns and conventions
 
@@ -136,4 +142,4 @@ Requires `yt-dlp` and `ffmpeg` on PATH.
 
 ## Deployment
 
-Push to `master` triggers a Fly.io deploy via GitHub Actions. The app runs on a single 256MB VM in Amsterdam. `--ha=false` disables high availability (only one instance should exist to avoid duplicate playback).
+Run one replica with `docker compose up -d --build` on the API host. Prefer `TAHTI_API_BASE` + `INTERNAL_SECRET` so credentials come from `GET /api/v1/internal/discord-bot/credentials`. Do not run more than one instance.
