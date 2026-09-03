@@ -37,7 +37,7 @@ cargo run
 
 ## Deploy
 
-The app runs on Fly.io (`tahti-radio`, Amsterdam, single 256MB VM). Push to `master` runs tests, then deploys when the `FLY_API_TOKEN` GitHub Actions secret is set:
+The app runs on Fly.io (`tahti-radio`, Amsterdam, single 256MB VM). Push to `master` runs tests, then deploys when the `FLY_API_TOKEN` GitHub Actions secret is set. If that secret is missing, deploy is skipped and CI still passes.
 
 ```sh
 gh secret set FLY_API_TOKEN --repo janiluuk/tahti-radio-discord-bot
