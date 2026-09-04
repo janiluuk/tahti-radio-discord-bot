@@ -64,7 +64,7 @@ tracks.txt (YouTube URLs) -> Broadcast (queue first, then random playlist pick)
 ```
 src/
   main.rs           Entry point. Loads config, playlist, creates Broadcast and DiscordSink.
-  config.rs         Config struct deserialized from env vars (DISCORD_TOKEN, DISCORD_CLIENT_ID).
+  config.rs         Loads credentials from the Tahti API (`TAHTI_API_BASE` + `INTERNAL_SECRET`) or env.
   playlist.rs       Loads tracks.txt (embedded at compile time via include_str!).
   track.rs          TrackMetadata and Track structs, parsing, Display impls.
   ytdlp.rs          yt-dlp CLI wrapper: fetch_metadata(), fetch_metadata_and_stream_url().
@@ -87,7 +87,7 @@ src/
         guild_create.rs  Finds/creates voice channel, joins, starts playback.
         interaction.rs   Routes slash commands to handlers by name match.
 tracks.txt          Playlist of YouTube URLs, one per line.
-docker-compose.yml  Single-replica process next to the Tahti API.
+docker-compose.yml  Standalone single-replica Compose file (local/dev). Production uses the Tahti stack.
 Dockerfile          Multi-stage build: cargo-chef 0.1.78 on Rust 1.97.1 bookworm, debian bookworm-slim runtime with ffmpeg + yt-dlp.
 ```
 
@@ -142,4 +142,21 @@ Requires `yt-dlp` and `ffmpeg` on PATH.
 
 ## Deployment
 
-Prefer the Tahti stack: `./scripts/deploy_prod.sh` (production) or `./scripts/stack-up.sh` (local), with this repo checked out next to `tahti`. One replica only. Prefer `TAHTI_API_BASE` + `INTERNAL_SECRET` so credentials come from `GET /api/v1/internal/discord-bot/credentials`.
+This bot is **not** Fly.io and **not** part of the Fastify API. It is a sibling
+of the Tahti monorepo (`../tahti`) and ships as Compose service `radio-discord-bot`
+in `tahti/infra/docker-compose.stack.yml` (one replica — a second copy joins
+Discord twice and plays in duplicate).
+
+- Production: from `../tahti`, `./scripts/deploy_prod.sh` rsyncs this checkout to
+  `$DEPLOY_PATH/../tahti-radio-discord-bot` (default `/srv/tahti-radio-discord-bot`)
+  and builds it with api / web / worker / orchestrator. The sibling must exist
+  (or set `RADIO_DISCORD_BOT_SRC`).
+- Local stack: `../tahti/scripts/stack-up.sh` starts this service when this repo
+  is checked out next to `tahti`.
+- Credentials: prefer `TAHTI_API_BASE` + `INTERNAL_SECRET` so the process loads
+  `GET /api/v1/internal/discord-bot/credentials`. On the stack network that is
+  `TAHTI_API_BASE=http://api:3001` and the same `INTERNAL_SECRET` as the API.
+  Board admins edit Client ID and token in Tahti Player → Settings → Add-ons →
+  Radio (`PUT /api/admin/discord-bot`).
+- CI on push to `master`: `cargo test --locked` and a Docker image build (no
+  deploy). Discord Interactions Endpoint URL and Linked Roles URL stay blank.
