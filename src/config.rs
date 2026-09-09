@@ -30,24 +30,33 @@ struct ApiCredentials {
 pub struct Config {
     pub discord_token: String,
     pub discord_client_id: u64,
+    pub api_base: Option<String>,
+    pub internal_secret: Option<String>,
 }
 
 pub async fn load() -> Result<Config, ConfigError> {
     let env: EnvConfig = envy::from_env()?;
 
-    if let (Some(base), Some(secret)) = (
-        env.tahti_api_base.as_deref().filter(|s| !s.is_empty()),
-        env.internal_secret.as_deref().filter(|s| !s.is_empty()),
-    ) {
+    let api_base = env.tahti_api_base.clone().filter(|s| !s.is_empty());
+    let internal_secret = env.internal_secret.clone().filter(|s| !s.is_empty());
+
+    if let (Some(base), Some(secret)) = (api_base.as_deref(), internal_secret.as_deref()) {
         match fetch_from_api(base, secret).await {
-            Ok(config) => return Ok(config),
+            Ok(mut config) => {
+                config.api_base = api_base;
+                config.internal_secret = internal_secret;
+                return Ok(config);
+            }
             Err(error) => {
                 tracing::warn!(%error, "Tahti API Discord credentials unavailable, using env");
             }
         }
     }
 
-    from_env(env)
+    let mut config = from_env(env)?;
+    config.api_base = api_base;
+    config.internal_secret = internal_secret;
+    Ok(config)
 }
 
 fn from_env(env: EnvConfig) -> Result<Config, ConfigError> {
@@ -64,6 +73,8 @@ fn from_env(env: EnvConfig) -> Result<Config, ConfigError> {
             .filter(|s| !s.is_empty())
             .ok_or(ConfigError::Missing("DISCORD_TOKEN"))?,
         discord_client_id,
+        api_base: None,
+        internal_secret: None,
     })
 }
 
@@ -89,5 +100,7 @@ async fn fetch_from_api(base: &str, secret: &str) -> Result<Config, Box<dyn std:
     Ok(Config {
         discord_token: credentials.token,
         discord_client_id,
+        api_base: None,
+        internal_secret: None,
     })
 }

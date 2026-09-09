@@ -18,13 +18,23 @@ use super::{Sink, SinkResult};
 struct Handler {
     broadcast: Arc<Broadcast>,
     ctx: Arc<Mutex<Option<Context>>>,
+    api_base: Option<String>,
+    internal_secret: Option<String>,
 }
 
 #[serenity_async_trait]
 impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, ready: Ready) {
         *self.ctx.lock().await = Some(ctx.clone());
-        handlers::ready::ready(ctx, ready, self.broadcast.subscribe()).await;
+        handlers::ready::ready(
+            ctx,
+            ready,
+            self.broadcast.subscribe(),
+            self.broadcast.subscribe(),
+            self.api_base.clone(),
+            self.internal_secret.clone(),
+        )
+        .await;
     }
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
@@ -40,6 +50,8 @@ pub struct DiscordSink {
     token: String,
     broadcast: Arc<Broadcast>,
     running: Option<Running>,
+    api_base: Option<String>,
+    internal_secret: Option<String>,
 }
 
 struct Running {
@@ -53,6 +65,8 @@ impl DiscordSink {
             token: config.discord_token.clone(),
             broadcast,
             running: None,
+            api_base: config.api_base.clone(),
+            internal_secret: config.internal_secret.clone(),
         }
     }
 }
@@ -67,6 +81,8 @@ impl Sink for DiscordSink {
             .event_handler(Handler {
                 broadcast: Arc::clone(&self.broadcast),
                 ctx: Arc::new(Mutex::new(None)),
+                api_base: self.api_base.clone(),
+                internal_secret: self.internal_secret.clone(),
             })
             .register_songbird_with(voice.clone())
             .await?;

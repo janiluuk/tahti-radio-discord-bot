@@ -41,6 +41,7 @@ A `Sink` consumes the audio stream. `Runtime` owns all sinks, starts them, and h
 One file per command under `commands/`, routed by name match in `interaction.rs`. No command manager.
 
 - `/play url:<string>`: responds immediately, resolves metadata in a background task, pushes to queue.
+- `/queue`: lists queued tracks.
 
 ### Data flow
 
@@ -80,10 +81,12 @@ src/
       commands/
         mod.rs      all() and register() for slash commands.
         play.rs     /play url:<str> handler.
+        queue.rs    /queue handler (lists queued tracks).
       handlers/
         mod.rs      Re-exports handler functions.
-        ready.rs    Login -> command registration -> activity sync spawn.
+        ready.rs    Login -> command registration -> activity + heartbeat sync spawn.
         activity.rs sync() loop + activity_for_track().
+        heartbeat.rs sync() loop: POSTs liveness (guild count, uptime, current track) to the Tahti API every 20s.
         guild_create.rs  Finds/creates voice channel, joins, starts playback.
         interaction.rs   Routes slash commands to handlers by name match.
 tracks.txt          Playlist of YouTube URLs, one per line.
@@ -97,10 +100,15 @@ Dockerfile          Multi-stage build: cargo-chef 0.1.78 on Rust 1.97.1 bookworm
 | ------------------- | -------- | --------------------------------------------------------------------------- |
 | `DISCORD_CLIENT_ID` | yes*     | Discord application / client ID                                             |
 | `DISCORD_TOKEN`     | yes*     | Discord bot token                                                           |
-| `TAHTI_API_BASE`    | no       | Tahti API origin (e.g. `https://api.tahti.live`). When set with `INTERNAL_SECRET`, credentials are loaded from the API. |
-| `INTERNAL_SECRET`   | no       | Shared secret for `GET /api/v1/internal/discord-bot/credentials`            |
+| `TAHTI_API_BASE`    | no       | Tahti API origin (e.g. `https://api.tahti.live`). When set with `INTERNAL_SECRET`, credentials are loaded from the API and a liveness heartbeat is sent every 20s. |
+| `INTERNAL_SECRET`   | no       | Shared secret for `GET /api/v1/internal/discord-bot/credentials` and `POST .../heartbeat` |
 
 \*Required unless the bot successfully loads credentials from the Tahti API.
+
+`TAHTI_API_BASE`/`INTERNAL_SECRET` also gate the heartbeat independently of
+where credentials came from — set both to get monitored in the admin panel
+(`/admin/status`, `/admin/dashboard`) even when running with env-only
+credentials. Without them, the bot runs fine but reports as "down" there.
 
 Loaded from `.env.local` first, then `.env`, then the actual environment. Both `.env` files are gitignored. Copy `.env.example` to `.env.local`.
 
@@ -138,7 +146,9 @@ Board admins edit the same Client ID and token in Tahti Player → Settings → 
 cargo run
 ```
 
-Requires `yt-dlp` and `ffmpeg` on PATH.
+Building needs `cmake`, `pkg-config`, and the libopus dev headers (songbird →
+`libopus_sys` compiles opus via cmake; CI installs `cmake pkg-config libopus-dev`).
+Running needs `yt-dlp` and `ffmpeg` on PATH.
 
 ## Deployment
 
@@ -157,6 +167,20 @@ Discord twice and plays in duplicate).
   `GET /api/v1/internal/discord-bot/credentials`. On the stack network that is
   `TAHTI_API_BASE=http://api:3001` and the same `INTERNAL_SECRET` as the API.
   Board admins edit Client ID and token in Tahti Player → Settings → Add-ons →
-  Radio (`PUT /api/admin/discord-bot`).
+  Radio (`PUT /api/admin/discord-bot`). The admin panel (`/admin/dashboard`)
+  has a "Restart Discord bot" button for after a credentials change — the
+  bot only reads them at startup, so a running instance won't pick up a new
+  token/client ID on its own.
+- Monitoring: the bot posts a liveness heartbeat to
+  `POST /api/v1/internal/discord-bot/heartbeat` every 20s (same
+  `TAHTI_API_BASE`/`INTERNAL_SECRET`). Shows up as `discord-bot` on
+  `/api/v1/status` and as a status pill on `/admin/dashboard`; flips to down
+  after 60s without a heartbeat.
 - CI on push to `master`: `cargo test --locked` and a Docker image build (no
   deploy). Discord Interactions Endpoint URL and Linked Roles URL stay blank.
+
+## Git workflow
+
+- Once a task is done (all its commits made, build/tests passing), push to
+  `origin` — don't leave finished work sitting only in the local checkout.
+  Push once at the end of the task, not after every individual commit.
