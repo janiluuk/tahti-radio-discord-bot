@@ -1,6 +1,6 @@
 # Tahti Radio
 
-A Discord bot that runs a 24/7 internet radio station. It joins a voice channel called "Tahti Radio" in every guild it's added to and continuously plays music from a curated playlist of YouTube URLs. Users can queue tracks via the `/play` slash command.
+A Discord bot that runs a 24/7 internet radio station. It joins a voice channel called "Tahti Radio" in every guild it's added to and continuously plays music. Default source is a curated playlist of YouTube URLs (`tracks.txt` via yt-dlp). When `TAHTI_RADIO_AUDIO_URL` (or legacy `TAHTI_RADIO_HLS_URL`) is set, it plays that HLS/direct stream instead — that is the live Tahti Radio audio path. `GET /api/v1/radio` on the Tahti API is **metadata only** (now playing / slots), not an audio URL. Users can still queue YouTube tracks via `/play`.
 
 Runs as the `radio-discord-bot` service in the Tahti stack (`infra/docker-compose.stack.yml`). CI on push to `master` runs tests and builds the Docker image.
 
@@ -49,10 +49,11 @@ One file per command under `commands/`, routed by name match in `interaction.rs`
 User /play command -----> Queue
                               |
                               v
-tracks.txt (YouTube URLs) -> Broadcast (queue first, then random playlist pick)
+TAHTI_RADIO_AUDIO_URL (HLS)  \
+  or tracks.txt (YouTube) ----> Broadcast (queue first, then playlist pick)
                               |
                               v
-                         yt-dlp -> ffmpeg -> AudioStream (ring buffer)
+              direct URL | yt-dlp -> ffmpeg -> AudioStream (ring buffer)
                               |
                               v
                          Songbird -> Discord voice channel
@@ -60,16 +61,17 @@ tracks.txt (YouTube URLs) -> Broadcast (queue first, then random playlist pick)
                          Bot activity: "Listening to Artist - Title"
 ```
 
+
 ## File map
 
 ```
 src/
   main.rs           Entry point. Loads config, playlist, creates Broadcast and DiscordSink.
   config.rs         Loads credentials from the Tahti API (`TAHTI_API_BASE` + `INTERNAL_SECRET`) or env.
-  playlist.rs       Loads tracks.txt (embedded at compile time via include_str!).
+  playlist.rs       Loads TAHTI_RADIO_AUDIO_URL when set, else tracks.txt (include_str!).
   track.rs          TrackMetadata and Track structs, parsing, Display impls.
   ytdlp.rs          yt-dlp CLI wrapper: fetch_metadata(), fetch_metadata_and_stream_url().
-  source.rs         Parsing layer: resolve() -> Track, resolve_metadata() -> TrackMetadata.
+  source.rs         resolve() -> Track; HLS/direct URLs skip yt-dlp.
   decode.rs         Spawns ffmpeg as a child process, exposes stdout as a Read + MediaSource.
   audio_stream.rs   Shared ring buffer. The bridge between Broadcast and all sinks.
   broadcast.rs      Playback loop. Owns now-playing watch channel and queue. Unit tested.
