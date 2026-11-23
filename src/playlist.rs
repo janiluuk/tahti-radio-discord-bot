@@ -13,7 +13,11 @@ pub enum PlaylistError {
 /// Note: `GET /api/v1/radio` on the Tahti API is now-playing **metadata**, not
 /// an audio URL. Do not point the bot at that route for playback.
 pub fn load() -> Result<Vec<String>, PlaylistError> {
-    if let Some(url) = env_stream_url() {
+    load_with(env_stream_url())
+}
+
+fn load_with(stream_url: Option<String>) -> Result<Vec<String>, PlaylistError> {
+    if let Some(url) = stream_url {
         return Ok(vec![url]);
     }
 
@@ -49,25 +53,15 @@ mod tests {
 
     #[test]
     fn load_returns_non_empty_from_tracks_txt() {
-        // Env may be set in CI — clear for this unit test.
-        std::env::remove_var("TAHTI_RADIO_AUDIO_URL");
-        std::env::remove_var("TAHTI_RADIO_HLS_URL");
-        let tracks = load().expect("tracks.txt should load");
+        let tracks = load_with(None).expect("tracks.txt should load");
         assert!(!tracks.is_empty());
         assert!(tracks.iter().all(|u| u.starts_with("http")));
     }
 
     #[test]
     fn load_prefers_tahti_radio_audio_url() {
-        std::env::set_var(
-            "TAHTI_RADIO_AUDIO_URL",
-            "https://stream.example/hls/tahti-radio/master.m3u8",
-        );
-        let tracks = load().expect("env playlist");
-        assert_eq!(
-            tracks,
-            vec!["https://stream.example/hls/tahti-radio/master.m3u8".to_owned()]
-        );
-        std::env::remove_var("TAHTI_RADIO_AUDIO_URL");
+        let url = "https://stream.example/hls/tahti-radio/master.m3u8".to_owned();
+        let tracks = load_with(Some(url.clone())).expect("env playlist");
+        assert_eq!(tracks, vec![url]);
     }
 }

@@ -13,7 +13,7 @@ use tokio::sync::Mutex;
 use crate::broadcast::Broadcast;
 use crate::config::Config;
 
-use super::{Sink, SinkResult};
+use super::{FatalSender, Sink, SinkResult};
 
 struct Handler {
     broadcast: Arc<Broadcast>,
@@ -73,7 +73,7 @@ impl DiscordSink {
 
 #[async_trait]
 impl Sink for DiscordSink {
-    async fn start(&mut self) -> SinkResult {
+    async fn start(&mut self, fatal: FatalSender) -> SinkResult {
         let intents = GatewayIntents::GUILDS | GatewayIntents::GUILD_VOICE_STATES;
 
         let voice = Songbird::serenity();
@@ -89,9 +89,12 @@ impl Sink for DiscordSink {
 
         let shards = client.shard_manager.clone();
         tokio::spawn(async move {
-            if let Err(error) = client.start().await {
-                eprintln!("Discord client error: {error}");
-            }
+            let reason = match client.start().await {
+                Ok(()) => "Discord client stopped".to_string(),
+                Err(error) => format!("Discord client error: {error}"),
+            };
+            tracing::error!(%reason, "Discord connection lost, shutting down for a restart");
+            let _ = fatal.send(reason);
         });
 
         self.running = Some(Running { voice, shards });
