@@ -67,7 +67,7 @@ TAHTI_RADIO_AUDIO_URL (HLS)  \
 ```
 src/
   main.rs           Entry point. Loads config, playlist, creates Broadcast and DiscordSink.
-  config.rs         Loads credentials from the Tahti API (`TAHTI_API_BASE` + `INTERNAL_SECRET`) or env.
+  config.rs         Loads credentials from the Tahti API (`TAHTI_API_BASE` + `INTERNAL_SECRET`, retried on transient errors) or env.
   playlist.rs       Loads TAHTI_RADIO_AUDIO_URL when set, else tracks.txt (include_str!).
   track.rs          TrackMetadata and Track structs, parsing, Display impls.
   ytdlp.rs          yt-dlp CLI wrapper: fetch_metadata(), fetch_metadata_and_stream_url().
@@ -75,7 +75,7 @@ src/
   decode.rs         Spawns ffmpeg as a child process, exposes stdout as a Read + MediaSource.
   audio_stream.rs   Shared ring buffer. The bridge between Broadcast and all sinks.
   broadcast.rs      Playback loop. Owns now-playing watch channel and queue. Unit tested.
-  runtime.rs        Owns sinks, manages startup and shutdown.
+  runtime.rs        Owns sinks, manages startup and shutdown (Ctrl+C, SIGTERM, or a sink's fatal error).
   sinks/
     mod.rs          Sink trait definition.
     discord/
@@ -111,6 +111,8 @@ Dockerfile          Multi-stage build: cargo-chef 0.1.78 on Rust 1.97.1 bookworm
 where credentials came from — set both to get monitored in the admin panel
 (`/admin/status`, `/admin/dashboard`) even when running with env-only
 credentials. Without them, the bot runs fine but reports as "down" there.
+
+Credentials from the API are retried with backoff for about two minutes when the API is unreachable or answers 5xx (it may still be starting during a deploy); a 404 or 401 falls back to env at once. If the Discord gateway connection ends (for example a rejected token), the bot shuts down and exits non-zero so the stack's `restart: unless-stopped` starts it again, instead of keeping the audio loop alive without Discord. SIGTERM shuts it down cleanly.
 
 Loaded from `.env.local` first, then `.env`, then the actual environment. Both `.env` files are gitignored. Copy `.env.example` to `.env.local`.
 
